@@ -52,15 +52,14 @@ import com.hartwig.hmftools.linx.types.SvCluster;
 import com.hartwig.hmftools.linx.types.SvVarData;
 import com.hartwig.hmftools.linx.visualiser.file.VisSampleData;
 
-public class DisruptionFinder implements CohortFileInterface
-{
+public class DisruptionFinder implements CohortFileInterface {
     private final EnsemblDataCache mGeneTransCache;
-    private final Map<String,List<String>> mDisruptionGeneTranscripts;
+    private final Map<String, List<String>> mDisruptionGeneTranscripts;
     private final List<DriverGene> mDriverGenes;
     private final VisSampleData mVisSampleData;
 
     private final List<SvDisruptionData> mDisruptions;
-    private final Map<BreakendTransData,String> mRemovedDisruptions; // cached for diagnostic purposes
+    private final Map<BreakendTransData, String> mRemovedDisruptions; // cached for diagnostic purposes
 
     private final boolean mIsGermline;
     private final GermlineDisruptions mGermlineDisruptions;
@@ -71,8 +70,7 @@ public class DisruptionFinder implements CohortFileInterface
 
     public DisruptionFinder(
             final LinxConfig config, final EnsemblDataCache geneTransCache,
-            final CohortDataWriter cohortDataWriter, final VisSampleData visSampleData)
-    {
+            final CohortDataWriter cohortDataWriter, final VisSampleData visSampleData) {
         mGeneTransCache = geneTransCache;
 
         mIsGermline = config.IsGermline;
@@ -88,21 +86,19 @@ public class DisruptionFinder implements CohortFileInterface
         mRemovedDisruptions = Maps.newHashMap();
     }
 
-    public static Map<String,List<String>> getDisruptionGeneTranscripts(
-            final List<DriverGene> driverGenes, boolean onlyReportable, final EnsemblDataCache geneTransCache)
-    {
-        // builds a list of genes meeting reportable driver disruption criteria and includes any non-canonical transcript names
-        Map<String,List<String>> geneTransMap = Maps.newHashMap();
+    public static Map<String, List<String>> getDisruptionGeneTranscripts(
+            final List<DriverGene> driverGenes, boolean onlyReportable, final EnsemblDataCache geneTransCache) {
+        // builds a list of genes meeting reportable driver disruption criteria and
+        // includes any non-canonical transcript names
+        Map<String, List<String>> geneTransMap = Maps.newHashMap();
 
-        for(DriverGene driverGene : driverGenes)
-        {
-            if(onlyReportable && !driverGene.reportDisruption())
+        for (DriverGene driverGene : driverGenes) {
+            if (onlyReportable && !driverGene.reportDisruption())
                 continue;
 
             GeneData geneData = geneTransCache.getGeneDataByName(driverGene.gene());
 
-            if(geneData != null)
-            {
+            if (geneData != null) {
                 geneTransMap.put(geneData.GeneId, driverGene.additionalReportedTranscripts());
             }
         }
@@ -110,54 +106,55 @@ public class DisruptionFinder implements CohortFileInterface
         return geneTransMap;
     }
 
-    public List<SvDisruptionData> getDisruptions() { return mDisruptions; }
-    public GermlineDisruptions germlineDisruptions() { return mGermlineDisruptions; }
+    public List<SvDisruptionData> getDisruptions() {
+        return mDisruptions;
+    }
 
-    private boolean matchesDisruptionGene(final String geneId)
-    {
+    public GermlineDisruptions germlineDisruptions() {
+        return mGermlineDisruptions;
+    }
+
+    private boolean matchesDisruptionGene(final String geneId) {
         return mDisruptionGeneTranscripts.containsKey(geneId);
     }
 
-    public boolean matchesDisruptionTranscript(final String geneId, final TranscriptData transData)
-    {
-        if(!mDisruptionGeneTranscripts.containsKey(geneId))
+    public boolean matchesDisruptionTranscript(final String geneId, final TranscriptData transData) {
+        if (!mDisruptionGeneTranscripts.containsKey(geneId))
             return false;
 
-        if(transData.IsCanonical)
+        if (transData.IsCanonical)
             return true;
 
         List<String> otherTrans = mDisruptionGeneTranscripts.get(geneId);
         return otherTrans.stream().anyMatch(x -> transData.TransName.equals(x));
     }
 
-    public void addDisruptionGene(final String geneId)
-    {
+    public void addDisruptionGene(final String geneId) {
         mDisruptionGeneTranscripts.put(geneId, Lists.newArrayList());
     }
 
-    public void markTranscriptsDisruptive(final List<SvVarData> svList)
-    {
+    public void markTranscriptsDisruptive(final List<SvVarData> svList) {
         mRemovedDisruptions.clear();
 
         Set<SvCluster> clusters = Sets.newHashSet();
 
-        for(final SvVarData var : svList)
-        {
+        for (final SvVarData var : svList) {
             markTranscriptsDisruptive(var);
 
             // inferred SGLs are always non-disruptive
-            if(var.isInferredSgl())
-            {
-                var.getGenesList(true).stream().forEach(x -> x.transcripts().stream().forEach(y -> y.setIsDisruptive(false)));
+            if (var.isInferredSgl()) {
+                var.getGenesList(true).stream()
+                        .forEach(x -> x.transcripts().stream().forEach(y -> y.setIsDisruptive(false)));
             }
 
-            if(!var.getCluster().getChains().isEmpty())
+            if (!var.getCluster().getChains().isEmpty())
                 clusters.add(var.getCluster());
         }
 
         clusters.forEach(x -> x.getChains().forEach(y -> checkChainedBreakends(y)));
 
-        // unmark a fully-intronic linked pair of breakends (INV or BND) if their other breakends are both non-genic
+        // unmark a fully-intronic linked pair of breakends (INV or BND) if their other
+        // breakends are both non-genic
         clusters.forEach(x -> x.getChains().forEach(y -> checkOtherEndsNonGenic(y)));
     }
 
@@ -168,36 +165,34 @@ public class DisruptionFinder implements CohortFileInterface
     private static final String NON_DISRUPT_REASON_SAME_INTRON = "SameIntron";
     private static final String NON_DISRUPT_REASON_TRAVERSED_SAME_INTRON = "TraversedSameIntron";
 
-    private void markTranscriptsDisruptive(final SvVarData var)
-    {
+    private void markTranscriptsDisruptive(final SvVarData var) {
         final List<BreakendGeneData> genesStart = var.getGenesList(true);
         final List<BreakendGeneData> genesEnd = var.getGenesList(false);
 
-        if(genesStart.isEmpty() && genesEnd.isEmpty())
+        if (genesStart.isEmpty() && genesEnd.isEmpty())
             return;
 
-        /* test the breakend to see if:
-            - it isn't chained - revert to simple disrupted definitions
-            - it is chained
-                - the chain returns to the same intron
-                - the chain traverses a splice acceptor in any direction
-        */
+        /*
+         * test the breakend to see if:
+         * - it isn't chained - revert to simple disrupted definitions
+         * - it is chained
+         * - the chain returns to the same intron
+         * - the chain traverses a splice acceptor in any direction
+         */
 
         final SvCluster cluster = var.getCluster();
 
-        for(int se = SE_START; se <= SE_END; ++se)
-        {
-            if(se == SE_END && var.isSglBreakend())
+        for (int se = SE_START; se <= SE_END; ++se) {
+            if (se == SE_END && var.isSglBreakend())
                 continue;
 
             final List<BreakendGeneData> svGenes = se == SE_START ? genesStart : genesEnd;
 
-            for(BreakendGeneData gene : svGenes)
-            {
-                // line clusters can insert into an intron and look disruptive if a single breakend is involved,
+            for (BreakendGeneData gene : svGenes) {
+                // line clusters can insert into an intron and look disruptive if a single
+                // breakend is involved,
                 // but are only inserting a (non-disruptive) shard
-                if(cluster.getResolvedType() == LINE)
-                {
+                if (cluster.getResolvedType() == LINE) {
                     gene.transcripts().stream()
                             .filter(x -> x.isIntronic())
                             .filter(x -> x.isDisruptive())
@@ -206,34 +201,29 @@ public class DisruptionFinder implements CohortFileInterface
             }
         }
 
-        if(var.isSimpleType())
-        {
+        if (var.isSimpleType()) {
             markNonDisruptiveGeneTranscripts(genesStart, genesEnd, NON_DISRUPT_REASON_SIMPLE_SV);
 
-            if(var.type() == DUP)
+            if (var.type() == DUP)
                 markNonDisruptiveDup(var);
         }
     }
 
-    private static List<BreakendTransData> getDisruptedTranscripts(final List<BreakendGeneData> genes)
-    {
+    private static List<BreakendTransData> getDisruptedTranscripts(final List<BreakendGeneData> genes) {
         List<BreakendTransData> transList = Lists.newArrayList();
 
-        for(final BreakendGeneData gene : genes)
-        {
+        for (final BreakendGeneData gene : genes) {
             transList.addAll(gene.transcripts().stream().filter(x -> x.isDisruptive()).collect(Collectors.toList()));
         }
 
         return transList;
     }
 
-    private static void removeNonDisruptedTranscripts(final List<BreakendTransData> transList)
-    {
+    private static void removeNonDisruptedTranscripts(final List<BreakendTransData> transList) {
         int index = 0;
 
-        while(index < transList.size())
-        {
-            if(transList.get(index).isDisruptive())
+        while (index < transList.size()) {
+            if (transList.get(index).isDisruptive())
                 ++index;
             else
                 transList.remove(index);
@@ -241,45 +231,42 @@ public class DisruptionFinder implements CohortFileInterface
     }
 
     private void markNonDisruptiveGeneTranscripts(
-            final List<BreakendGeneData> genesStart, final List<BreakendGeneData> genesEnd, final String context)
-    {
-        // check for breakend transcripts from DELs and DUPs which start and end in the same intron
-        for(final BreakendGeneData geneStart : genesStart)
-        {
+            final List<BreakendGeneData> genesStart, final List<BreakendGeneData> genesEnd, final String context) {
+        // check for breakend transcripts from DELs and DUPs which start and end in the
+        // same intron
+        for (final BreakendGeneData geneStart : genesStart) {
             final BreakendGeneData geneEnd = genesEnd.stream()
                     .filter(x -> x.geneId().equals(geneStart.geneId())).findFirst().orElse(null);
 
-            if(geneEnd == null)
+            if (geneEnd == null)
                 continue;
 
             markNonDisruptiveTranscripts(geneStart.transcripts(), geneEnd.transcripts(), context);
         }
     }
 
-    private boolean markNonDisruptiveTranscripts(final List<BreakendTransData> transList1, final List<BreakendTransData> transList2, final String context)
-    {
+    private boolean markNonDisruptiveTranscripts(final List<BreakendTransData> transList1,
+            final List<BreakendTransData> transList2, final String context) {
         // look for matching transcripts which are both in the same non-exonic section
         boolean foundMatchingTrans = false;
 
-        for(final BreakendTransData trans1 : transList1)
-        {
+        for (final BreakendTransData trans1 : transList1) {
             final BreakendTransData trans2 = transList2.stream()
                     .filter(x -> x.transId() == trans1.transId()).findFirst().orElse(null);
 
-            if(trans2 == null)
+            if (trans2 == null)
                 continue;
 
-            if(markNonDisruptiveTranscript(trans1, trans2, context))
+            if (markNonDisruptiveTranscript(trans1, trans2, context))
                 foundMatchingTrans = true;
         }
 
         return foundMatchingTrans;
     }
 
-    private boolean markNonDisruptiveTranscript(final BreakendTransData trans1, final BreakendTransData trans2, final String context)
-    {
-        if(trans1.ExonUpstream == trans2.ExonUpstream && !trans1.isExonic() && !trans2.isExonic())
-        {
+    private boolean markNonDisruptiveTranscript(final BreakendTransData trans1, final BreakendTransData trans2,
+            final String context) {
+        if (trans1.ExonUpstream == trans2.ExonUpstream && !trans1.isExonic() && !trans2.isExonic()) {
             markNonDisruptiveTranscript(trans1, context);
             markNonDisruptiveTranscript(trans2, context);
             return true;
@@ -288,33 +275,30 @@ public class DisruptionFinder implements CohortFileInterface
         return false;
     }
 
-    private void markNonDisruptiveDup(final SvVarData var)
-    {
-        if(var.getCluster().getSvCount() > 1) // only apply these checks for simple (unclustered DUPs)
+    private void markNonDisruptiveDup(final SvVarData var) {
+        if (var.getCluster().getSvCount() > 1) // only apply these checks for simple (unclustered DUPs)
             return;
 
-        // DUPs are only disruptive if both ends are within the same transcript or chained
+        // DUPs are only disruptive if both ends are within the same transcript or
+        // chained
         // so need to test each end in turn for a matching transcript
-        for(int se = SE_START; se <= SE_END; ++se)
-        {
+        for (int se = SE_START; se <= SE_END; ++se) {
             List<BreakendGeneData> genesList = var.getGenesList(isStart(se));
 
-            if(genesList.isEmpty())
+            if (genesList.isEmpty())
                 continue;
 
             List<BreakendGeneData> otherBreakendGenes = var.getGenesList(!isStart(se));
 
             // ignore if the other breakend may be in a different gene (eg making a fusion)
-            if(!otherBreakendGenes.isEmpty())
-            {
-                if(otherBreakendGenes.stream().anyMatch(x -> genesList.stream().anyMatch(y -> !y.geneName().equals(x.geneName()))))
+            if (!otherBreakendGenes.isEmpty()) {
+                if (otherBreakendGenes.stream()
+                        .anyMatch(x -> genesList.stream().anyMatch(y -> !y.geneName().equals(x.geneName()))))
                     continue;
             }
 
-            for(BreakendGeneData gene : genesList)
-            {
-                if(otherBreakendGenes.isEmpty())
-                {
+            for (BreakendGeneData gene : genesList) {
+                if (otherBreakendGenes.isEmpty()) {
                     // other breakend isn't in any genic region
                     gene.transcripts().forEach(x -> markNonDisruptiveTranscript(x, NON_DISRUPT_REASON_PARTIAL_DUP));
                     continue;
@@ -323,50 +307,41 @@ public class DisruptionFinder implements CohortFileInterface
                 BreakendGeneData otherBreakendGeneData = otherBreakendGenes.stream()
                         .filter(x -> x.geneId().equals(gene.geneId())).findFirst().orElse(null);
 
-                if(otherBreakendGeneData != null)
-                {
-                    // other breakend is in the same gene, so check each transcript for a matching transcript in the other breakend
-                    for(BreakendTransData trans : gene.transcripts())
-                    {
+                if (otherBreakendGeneData != null) {
+                    // other breakend is in the same gene, so check each transcript for a matching
+                    // transcript in the other breakend
+                    for (BreakendTransData trans : gene.transcripts()) {
                         BreakendTransData matchingTrans = otherBreakendGeneData.transcripts().stream()
                                 .filter(x -> x.transId() == trans.transId()).findFirst().orElse(null);
 
-                        if(matchingTrans == null)
-                        {
+                        if (matchingTrans == null) {
                             markNonDisruptiveTranscript(trans, NON_DISRUPT_REASON_PARTIAL_DUP);
-                        }
-                        else
-                        {
+                        } else {
                             boolean withinTrans = trans.regionType() == EXONIC || trans.regionType() == INTRONIC;
-                            boolean withinOtherTrans = matchingTrans.regionType() == EXONIC || matchingTrans.regionType() == INTRONIC;
+                            boolean withinOtherTrans = matchingTrans.regionType() == EXONIC
+                                    || matchingTrans.regionType() == INTRONIC;
 
-                            if(!withinTrans || !withinOtherTrans)
-                            {
+                            if (!withinTrans || !withinOtherTrans) {
                                 markNonDisruptiveTranscript(trans, NON_DISRUPT_REASON_PARTIAL_DUP);
                                 markNonDisruptiveTranscript(matchingTrans, NON_DISRUPT_REASON_PARTIAL_DUP);
                             }
                         }
                     }
 
-                    if(gene.isUpstream())
-                    {
-                        for(BreakendTransData upTrans : gene.transcripts())
-                        {
+                    if (gene.isUpstream()) {
+                        for (BreakendTransData upTrans : gene.transcripts()) {
                             final BreakendTransData downTrans = otherBreakendGeneData.transcripts().stream()
                                     .filter(x -> x.transId() == upTrans.transId()).findFirst().orElse(null);
 
-                            if(downTrans != null && upTrans.ExonUpstream == 1 && downTrans.ExonDownstream <= 2 && !upTrans.isExonic())
-                            {
+                            if (downTrans != null && upTrans.ExonUpstream == 1 && downTrans.ExonDownstream <= 2
+                                    && !upTrans.isExonic()) {
                                 markNonDisruptiveTranscript(upTrans, NON_DISRUPT_REASON_PARTIAL_DUP);
                                 markNonDisruptiveTranscript(downTrans, NON_DISRUPT_REASON_PARTIAL_DUP);
                             }
                         }
                     }
-                }
-                else
-                {
-                    for(BreakendTransData trans : gene.transcripts())
-                    {
+                } else {
+                    for (BreakendTransData trans : gene.transcripts()) {
                         markNonDisruptiveTranscript(trans, NON_DISRUPT_REASON_PARTIAL_DUP);
 
                     }
@@ -375,100 +350,97 @@ public class DisruptionFinder implements CohortFileInterface
         }
     }
 
-    private void markNonDisruptiveTranscript(final BreakendTransData transcript, final String context)
-    {
-        if(!transcript.isDisruptive())
+    private void markNonDisruptiveTranscript(final BreakendTransData transcript, final String context) {
+        if (!transcript.isDisruptive())
             return;
 
         transcript.setIsDisruptive(false);
         registerNonDisruptedTranscript(transcript, context);
     }
 
-    private void registerNonDisruptedTranscript(final BreakendTransData transcript, final String context)
-    {
+    private void registerNonDisruptedTranscript(final BreakendTransData transcript, final String context) {
         // keep track of non-disruptive breakends purely for logging purposes
-        if(mIsGermline)
+        if (mIsGermline)
             return;
 
-        if(mRemovedDisruptions.containsKey(transcript))
+        if (mRemovedDisruptions.containsKey(transcript))
             return;
 
-        if(!matchesDisruptionTranscript(transcript.gene().geneId(), transcript.TransData))
+        if (!matchesDisruptionTranscript(transcript.gene().geneId(), transcript.TransData))
             return;
 
-        LNX_LOGGER.debug("excluding gene({}) svId({}) reason({})", transcript.geneName(), transcript.gene().id(), context);
+        LNX_LOGGER.debug("excluding gene({}) svId({}) reason({})", transcript.geneName(), transcript.gene().id(),
+                context);
 
         mRemovedDisruptions.put(transcript, context);
     }
 
     // chaining checks
-    private void checkChainedBreakends(final SvChain chain)
-    {
-        // unmark assembled links within a chain if the both the chain's ends are non-genic
+    private void checkChainedBreakends(final SvChain chain) {
+        // unmark assembled links within a chain if the both the chain's ends are
+        // non-genic
         checkChainThroughIntrons(chain);
 
-        // unmark breakend(s) if a) disruptive and b) follows a set of links which return to same intron in opposite orientation
+        // unmark breakend(s) if a) disruptive and b) follows a set of links which
+        // return to same intron in opposite orientation
         checkTraverseToSameIntron(chain);
     }
 
-    private void checkChainThroughIntrons(final SvChain chain)
-    {
+    private void checkChainThroughIntrons(final SvChain chain) {
         SvBreakend chainStart = chain.getOpenBreakend(true);
         SvBreakend chainEnd = chain.getOpenBreakend(false);
 
-        if(chainStart == null || chainEnd == null)
+        if (chainStart == null || chainEnd == null)
             return;
 
         // have to ignore DELs since they can delete parts of the gene from outside it
-        if(chainStart.getSV().type() == DEL || chainEnd.getSV().type() == DEL)
+        if (chainStart.getSV().type() == DEL || chainEnd.getSV().type() == DEL)
             return;
 
         List<BreakendGeneData> genesStart = chainStart.getGenesList();
         List<BreakendGeneData> genesEnd = chainEnd.getGenesList();
 
         // both chain ends must start in non-genic regions
-        if(!genesStart.isEmpty() || !genesEnd.isEmpty())
-        {
-            if(genesStart.stream().anyMatch(x -> x.transcripts().stream().anyMatch(y -> y.isDisruptive())))
+        if (!genesStart.isEmpty() || !genesEnd.isEmpty()) {
+            if (genesStart.stream().anyMatch(x -> x.transcripts().stream().anyMatch(y -> y.isDisruptive())))
                 return;
 
-            if(genesEnd.stream().anyMatch(x -> x.transcripts().stream().anyMatch(y -> y.isDisruptive())))
+            if (genesEnd.stream().anyMatch(x -> x.transcripts().stream().anyMatch(y -> y.isDisruptive())))
                 return;
         }
 
-        for(final LinkedPair pair : chain.getLinkedPairs())
-        {
-            if(!pair.isAssembled())
+        for (final LinkedPair pair : chain.getLinkedPairs()) {
+            if (!pair.isAssembled())
                 continue;
 
             SvBreakend breakend1 = pair.firstBreakend();
             SvBreakend breakend2 = pair.secondBreakend();
 
-            if(breakend1.getSV().type() == DEL || breakend2.getSV().type() == DEL)
+            if (breakend1.getSV().type() == DEL || breakend2.getSV().type() == DEL)
                 continue;
 
             List<BreakendGeneData> genes1 = breakend1.getGenesList();
             List<BreakendGeneData> genes2 = breakend2.getGenesList();
 
-            if(genes1.isEmpty() || genes2.isEmpty())
+            if (genes1.isEmpty() || genes2.isEmpty())
                 continue;
 
-            // neither breakend can be in a deletion bridge with a breakend in the same cluster and gene
-            if(genes1.stream().anyMatch(x -> inDeletionBridgeWithinGene(chain, breakend1, x.geneName())))
+            // neither breakend can be in a deletion bridge with a breakend in the same
+            // cluster and gene
+            if (genes1.stream().anyMatch(x -> inDeletionBridgeWithinGene(chain, breakend1, x.geneName())))
                 continue;
-            else if(genes2.stream().anyMatch(x -> inDeletionBridgeWithinGene(chain, breakend2, x.geneName())))
+            else if (genes2.stream().anyMatch(x -> inDeletionBridgeWithinGene(chain, breakend2, x.geneName())))
                 continue;
 
-            for(BreakendGeneData gene1 : genes1)
-            {
-                BreakendGeneData gene2 = genes2.stream().filter(x -> x.geneId().equals(gene1.geneId())).findFirst().orElse(null);
+            for (BreakendGeneData gene1 : genes1) {
+                BreakendGeneData gene2 = genes2.stream().filter(x -> x.geneId().equals(gene1.geneId())).findFirst()
+                        .orElse(null);
 
-                if(gene2 == null)
+                if (gene2 == null)
                     continue;
 
-                for(BreakendTransData trans1 : gene1.transcripts())
-                {
-                    if(trans1.regionType() != INTRONIC)
+                for (BreakendTransData trans1 : gene1.transcripts()) {
+                    if (trans1.regionType() != INTRONIC)
                         continue;
 
                     // are the breakends within the same intro for any of the transcripts
@@ -478,11 +450,10 @@ public class DisruptionFinder implements CohortFileInterface
                             .filter(x -> x.ExonDownstream == trans1.ExonDownstream)
                             .findFirst().orElse(null);
 
-                    if(trans2 == null || (!trans1.isDisruptive() && !trans2.isDisruptive()))
+                    if (trans2 == null || (!trans1.isDisruptive() && !trans2.isDisruptive()))
                         continue;
 
-                    if(markNonDisruptiveTranscript(trans1, trans2, NON_DISRUPT_REASON_SAME_INTRON))
-                    {
+                    if (markNonDisruptiveTranscript(trans1, trans2, NON_DISRUPT_REASON_SAME_INTRON)) {
                         LNX_LOGGER.debug("cluster({}) chain({}) pair({}) length({}) fully intronic)",
                                 breakend1.getSV().getCluster().id(), chain.id(), pair, pair.baseLength());
                     }
@@ -491,9 +462,8 @@ public class DisruptionFinder implements CohortFileInterface
         }
     }
 
-    private void checkTraverseToSameIntron(final SvChain chain)
-    {
-        if(chain.getOpenBreakend(true) == null || chain.getOpenBreakend(false) == null)
+    private void checkTraverseToSameIntron(final SvChain chain) {
+        if (chain.getOpenBreakend(true) == null || chain.getOpenBreakend(false) == null)
             return;
 
         // walk through the chain from start to end, breakend by breakend
@@ -501,36 +471,35 @@ public class DisruptionFinder implements CohortFileInterface
 
         List<LinkedPair> links = chain.getLinkedPairs();
 
-        while(true)
-        {
+        while (true) {
             ++linkIndex;
 
-            if(linkIndex >= links.size())
+            if (linkIndex >= links.size())
                 break;
 
             LinkedPair pair = links.get(linkIndex);
             SvBreakend breakend = pair.firstBreakend().getOtherBreakend();
 
             List<BreakendGeneData> genes = breakend.getGenesList();
-            if(genes.isEmpty())
+            if (genes.isEmpty())
                 continue;
 
             List<BreakendTransData> transList = getDisruptedTranscripts(genes);
-            if(transList.isEmpty())
+            if (transList.isEmpty())
                 continue;
 
-            // look ahead from this breakend to any which then return to this same intron with the opposite orientation
+            // look ahead from this breakend to any which then return to this same intron
+            // with the opposite orientation
             int nextLinkIndex = linkIndex - 1; // so starts with the link from this breakend
 
             boolean foundSameIntronBreakend = false;
             final List<LinkedPair> traversedPairs = Lists.newArrayList();
             int chainLength = 0;
 
-            while(true)
-            {
+            while (true) {
                 ++nextLinkIndex;
 
-                if(nextLinkIndex >= links.size())
+                if (nextLinkIndex >= links.size())
                     break;
 
                 final LinkedPair nextPair = links.get(nextLinkIndex);
@@ -538,12 +507,12 @@ public class DisruptionFinder implements CohortFileInterface
                 // does this next link traverse another splice acceptor?
                 boolean traversesGene = pairTraversesGene(nextPair, 0, false);
 
-                if(traversesGene)
+                if (traversesGene)
                     break;
 
                 chainLength += nextPair.baseLength();
 
-                if(chainLength > MAX_NON_DISRUPTED_CHAIN_LENGTH)
+                if (chainLength > MAX_NON_DISRUPTED_CHAIN_LENGTH)
                     break;
 
                 // keep track of traversed pairs since they may be marked as non-disruptive too
@@ -552,69 +521,72 @@ public class DisruptionFinder implements CohortFileInterface
                 // does it return to the same intron and correct orientation for any transcripts
                 final SvBreakend nextBreakend = nextPair.secondBreakend().getOtherBreakend();
 
-                if(nextBreakend == null)
+                if (nextBreakend == null)
                     continue;
 
-                if(nextBreakend.orientation() == breakend.orientation() || !nextBreakend.chromosome().equals(breakend.chromosome()))
+                if (nextBreakend.orientation() == breakend.orientation()
+                        || !nextBreakend.chromosome().equals(breakend.chromosome()))
                     continue;
 
                 List<BreakendGeneData> otherGenes = nextBreakend.getGenesList();
 
-                if(otherGenes.isEmpty() || otherGenes.stream().noneMatch(x -> genes.stream().anyMatch(y -> x.geneName().equals(y.geneName()))))
+                if (otherGenes.isEmpty() || otherGenes.stream()
+                        .noneMatch(x -> genes.stream().anyMatch(y -> x.geneName().equals(y.geneName()))))
                     continue;
 
                 List<BreakendTransData> otherTransList = getDisruptedTranscripts(otherGenes);
 
-                if(!otherTransList.isEmpty())
-                {
-                    if(markNonDisruptiveTranscripts(transList, otherTransList, NON_DISRUPT_REASON_SAME_INTRON))
-                    {
+                if (!otherTransList.isEmpty()) {
+                    if (markNonDisruptiveTranscripts(transList, otherTransList, NON_DISRUPT_REASON_SAME_INTRON)) {
                         foundSameIntronBreakend = true;
 
-                        // mark any traversed pair's breakends non-disruptive regardless of their transcripts since in the context
+                        // mark any traversed pair's breakends non-disruptive regardless of their
+                        // transcripts since in the context
                         // of this chain they aren't disruptive to other introns
-                        for(LinkedPair traversedPair : traversedPairs)
-                        {
+                        for (LinkedPair traversedPair : traversedPairs) {
                             SvBreakend breakend1 = traversedPair.firstBreakend();
                             SvBreakend breakend2 = traversedPair.secondBreakend();
 
                             List<BreakendTransData> traversedTrans1 = getDisruptedTranscripts(breakend1.getGenesList());
                             List<BreakendTransData> traversedTrans2 = getDisruptedTranscripts(breakend2.getGenesList());
 
-                            if(!traversedTrans1.isEmpty() && !traversedTrans2.isEmpty())
-                            {
-                                markNonDisruptiveTranscripts(traversedTrans1, traversedTrans2, NON_DISRUPT_REASON_TRAVERSED_SAME_INTRON);
+                            if (!traversedTrans1.isEmpty() && !traversedTrans2.isEmpty()) {
+                                markNonDisruptiveTranscripts(traversedTrans1, traversedTrans2,
+                                        NON_DISRUPT_REASON_TRAVERSED_SAME_INTRON);
                             }
                         }
 
                         removeNonDisruptedTranscripts(transList);
 
-                        LNX_LOGGER.debug("breakends({} & {}) chain({} links({} -> {}) return to same intron length({}) traversedPairs({})",
-                                breakend, nextBreakend, chain.id(), linkIndex, nextLinkIndex, chainLength, traversedPairs.size());
+                        LNX_LOGGER.debug(
+                                "breakends({} & {}) chain({} links({} -> {}) return to same intron length({}) traversedPairs({})",
+                                breakend, nextBreakend, chain.id(), linkIndex, nextLinkIndex, chainLength,
+                                traversedPairs.size());
                     }
                 }
 
                 break;
             }
 
-            if(foundSameIntronBreakend)
+            if (foundSameIntronBreakend)
                 linkIndex = nextLinkIndex;
         }
     }
 
-    private boolean inDeletionBridgeWithinGene(final SvChain chain, final SvBreakend breakend, final String geneName)
-    {
-        // check if this breakend is in a deletion bridge with a disruptive breakend in the same gene but a different chain
-        if(breakend.getDBLink() == null)
+    private boolean inDeletionBridgeWithinGene(final SvChain chain, final SvBreakend breakend, final String geneName) {
+        // check if this breakend is in a deletion bridge with a disruptive breakend in
+        // the same gene but a different chain
+        if (breakend.getDBLink() == null)
             return false;
 
         final SvBreakend otherBreakend = breakend.getDBLink().getOtherBreakend(breakend);
 
-        if(otherBreakend.getCluster() != breakend.getCluster())
+        if (otherBreakend.getCluster() != breakend.getCluster())
             return false;
 
-        // breakends in the same chain can form DBs with each other and their TIs can be tested as usual
-        if(otherBreakend.getCluster().findChain(otherBreakend.getSV()) == chain)
+        // breakends in the same chain can form DBs with each other and their TIs can be
+        // tested as usual
+        if (otherBreakend.getCluster().findChain(otherBreakend.getSV()) == chain)
             return false;
 
         return otherBreakend.getGenesList().stream()
@@ -622,33 +594,32 @@ public class DisruptionFinder implements CohortFileInterface
                 .anyMatch(x -> x.transcripts().stream().anyMatch(y -> y.isDisruptive()));
     }
 
-    private void checkOtherEndsNonGenic(final SvChain chain)
-    {
-        for(final LinkedPair pair : chain.getLinkedPairs())
-        {
+    private void checkOtherEndsNonGenic(final SvChain chain) {
+        for (final LinkedPair pair : chain.getLinkedPairs()) {
             SvBreakend breakend1 = pair.firstBreakend();
             SvBreakend breakend2 = pair.secondBreakend();
 
             // have to ignore DELs since they can delete parts of the gene from outside it
-            if(breakend1.getSV().type() == DEL || breakend2.getSV().type() == DEL)
+            if (breakend1.getSV().type() == DEL || breakend2.getSV().type() == DEL)
                 continue;
 
             List<BreakendGeneData> genes1 = breakend1.getGenesList();
             List<BreakendGeneData> genes2 = breakend2.getGenesList();
 
-            if(genes1.isEmpty() || genes2.isEmpty())
+            if (genes1.isEmpty() || genes2.isEmpty())
                 continue;
 
             List<BreakendTransData> transList1 = getDisruptedTranscripts(genes1);
             List<BreakendTransData> transList2 = getDisruptedTranscripts(genes2);
 
-            if(transList1.isEmpty() || transList2.isEmpty())
+            if (transList1.isEmpty() || transList2.isEmpty())
                 continue;
 
-            // neither breakend can be in a deletion bridge with a breakend in the same cluster and gene
-            if(genes1.stream().anyMatch(x -> inDeletionBridgeWithinGene(chain, breakend1, x.geneName())))
+            // neither breakend can be in a deletion bridge with a breakend in the same
+            // cluster and gene
+            if (genes1.stream().anyMatch(x -> inDeletionBridgeWithinGene(chain, breakend1, x.geneName())))
                 continue;
-            else if(genes2.stream().anyMatch(x -> inDeletionBridgeWithinGene(chain, breakend2, x.geneName())))
+            else if (genes2.stream().anyMatch(x -> inDeletionBridgeWithinGene(chain, breakend2, x.geneName())))
                 continue;
 
             SvBreakend otherBreakend1 = breakend1.getOtherBreakend();
@@ -657,20 +628,26 @@ public class DisruptionFinder implements CohortFileInterface
             boolean otherBreakend1NonGenic = otherBreakend1 != null ? otherBreakend1.getGenesList().isEmpty() : false;
             boolean otherBreakend2NonGenic = otherBreakend2 != null ? otherBreakend2.getGenesList().isEmpty() : false;
 
-            if(otherBreakend1NonGenic && otherBreakend2NonGenic)
-            {
-                if(markNonDisruptiveTranscripts(transList1, transList2, NON_DISRUPT_REASON_OTHER_NON_GENIC))
-                {
+            if (otherBreakend1NonGenic && otherBreakend2NonGenic) {
+                if (markNonDisruptiveTranscripts(transList1, transList2, NON_DISRUPT_REASON_OTHER_NON_GENIC)) {
                     LNX_LOGGER.debug("pair({}) length({}) fully intronic)", pair, pair.positionDistance());
                 }
             }
         }
     }
 
-    public boolean pairTraversesGene(final LinkedPair pair, int fusionDirection, boolean isPrecodingUpstream)
-    {
-        // for this pair to not affect a fusion or be consider non-disruptive, the section it traverses cannot cross
-        // any gene's splice acceptor with the same strand direction unless that is part of a fully traversed non-coding 5' exon
+    public boolean pairTraversesGene(final LinkedPair pair, int fusionDirection, boolean isPrecodingUpstream) {
+        return pairTraversesGene(pair, fusionDirection, isPrecodingUpstream, null);
+    }
+
+    public boolean pairTraversesGene(
+            final LinkedPair pair, int fusionDirection, boolean isPrecodingUpstream, final String excludeGeneId) {
+        // for this pair to not affect a fusion or be consider non-disruptive, the
+        // section it traverses cannot cross
+        // any gene's splice acceptor with the same strand direction unless that is part
+        // of a fully traversed non-coding 5' exon
+        // optionally exclude a specific gene (typically the downstream fusion gene)
+        // from being flagged as a traversal
 
         // fusion-direction is the stream, or zero means ignore
 
@@ -679,45 +656,46 @@ public class DisruptionFinder implements CohortFileInterface
 
         List<GeneData> geneDataList = mGeneTransCache.getChrGeneDataMap().get(pair.chromosome());
 
-        if(geneDataList == null)
+        if (geneDataList == null)
             return false;
 
-        for(GeneData geneData : geneDataList)
-        {
-            if(lowerPos > geneData.GeneEnd)
+        for (GeneData geneData : geneDataList) {
+            if (lowerPos > geneData.GeneEnd)
                 continue;
 
-            if(upperPos < geneData.GeneStart)
+            if (upperPos < geneData.GeneStart)
                 break;
 
-            if(fusionDirection == 0 || geneData.Strand == fusionDirection)
-            {
+            // skip the excluded gene (e.g. the downstream fusion gene)
+            if (excludeGeneId != null && geneData.GeneId.equals(excludeGeneId))
+                continue;
+
+            if (fusionDirection == 0 || geneData.Strand == fusionDirection) {
                 // check whether a splice acceptor is encountered within this window
                 List<TranscriptData> transDataList = mGeneTransCache.getTranscripts(geneData.GeneId);
 
-                if(transDataList == null)
+                if (transDataList == null)
                     continue;
 
-                for(final TranscriptData transData : transDataList)
-                {
-                    for(final ExonData exonData : transData.exons())
-                    {
-                        if(exonData.Rank == 1)
+                for (final TranscriptData transData : transDataList) {
+                    for (final ExonData exonData : transData.exons()) {
+                        if (exonData.Rank == 1)
                             continue;
 
-                        if((geneData.Strand == 1 && lowerPos <= exonData.Start && upperPos >= exonData.Start)
-                        || (geneData.Strand == -1 && lowerPos <= exonData.End && upperPos >= exonData.End))
-                        {
+                        if ((geneData.Strand == 1 && lowerPos <= exonData.Start && upperPos >= exonData.Start)
+                                || (geneData.Strand == -1 && lowerPos <= exonData.End && upperPos >= exonData.End)) {
                             // allow an exon to be fully traversed if the upstream transcript is pre-coding
-                            if(isPrecodingUpstream && lowerPos <= exonData.Start && upperPos >= exonData.End)
-                            {
-                                if(geneData.Strand == 1 && (transData.CodingStart == null || upperPos < transData.CodingStart))
+                            if (isPrecodingUpstream && lowerPos <= exonData.Start && upperPos >= exonData.End) {
+                                if (geneData.Strand == 1
+                                        && (transData.CodingStart == null || upperPos < transData.CodingStart))
                                     continue;
-                                else if(geneData.Strand == -1 && (transData.CodingEnd == null || lowerPos > transData.CodingEnd))
+                                else if (geneData.Strand == -1
+                                        && (transData.CodingEnd == null || lowerPos > transData.CodingEnd))
                                     continue;
                             }
 
-                            LNX_LOGGER.trace("pair({}) direction({}) traverses splice acceptor({} {}) exon(rank{} pos={})",
+                            LNX_LOGGER.trace(
+                                    "pair({}) direction({}) traverses splice acceptor({} {}) exon(rank{} pos={})",
                                     pair.toString(), fusionDirection, geneData.GeneName, transData.TransName,
                                     exonData.Rank, exonData.Start, exonData.End);
 
@@ -731,62 +709,57 @@ public class DisruptionFinder implements CohortFileInterface
         return false;
     }
 
-    public void findReportableDisruptions(final List<SvVarData> svList, final List<SvCluster> clusters)
-    {
+    public void findReportableDisruptions(final List<SvVarData> svList, final List<SvCluster> clusters) {
         mDisruptions.clear();
 
-        for(SvVarData var : svList)
-        {
-            for(int be = SE_START; be <= SE_END; ++be)
-            {
-                if(be == SE_END && var.isSglBreakend())
+        for (SvVarData var : svList) {
+            for (int be = SE_START; be <= SE_END; ++be) {
+                if (be == SE_END && var.isSglBreakend())
                     continue;
 
                 final List<BreakendGeneData> tsgGenesList = var.getGenesList(isStart(be)).stream()
                         .filter(x -> matchesDisruptionGene(x.geneId())).collect(Collectors.toList());
 
-                if(tsgGenesList.isEmpty())
+                if (tsgGenesList.isEmpty())
                     continue;
 
-                for(BreakendGeneData gene : tsgGenesList)
-                {
+                for (BreakendGeneData gene : tsgGenesList) {
                     List<BreakendTransData> reportableDisruptions = gene.transcripts().stream()
                             .filter(BreakendTransData::isDisruptive)
                             .collect(Collectors.toList());
 
-                    for(BreakendTransData transcript : reportableDisruptions)
-                    {
-                        if(!matchesDisruptionTranscript(gene.geneId(), transcript.TransData))
+                    for (BreakendTransData transcript : reportableDisruptions) {
+                        if (!matchesDisruptionTranscript(gene.geneId(), transcript.TransData))
                             continue;
 
                         SvBreakend breakend = var.getBreakend(be);
 
-                        if(!transcript.undisruptedCopyNumberSet())
+                        if (!transcript.undisruptedCopyNumberSet())
                             transcript.setUndisruptedCopyNumber(getUndisruptedCopyNumber(breakend));
 
                         LNX_LOGGER.debug("var({}) breakend({}) gene({}) transcript({}) is disrupted, cnLowside({})",
-                                var.id(), breakend, gene.geneName(), transcript.transName(), formatJcn(transcript.undisruptedCopyNumber()));
+                                var.id(), breakend, gene.geneName(), transcript.transName(),
+                                formatJcn(transcript.undisruptedCopyNumber()));
 
                         transcript.setReportableDisruption(true);
 
                         SvDisruptionData disruptionData = new SvDisruptionData(
-                                var,  gene.isStart(), gene.GeneData, transcript.TransData,
+                                var, gene.isStart(), gene.GeneData, transcript.TransData,
                                 new int[] { transcript.ExonUpstream, transcript.ExonDownstream },
                                 transcript.codingType(), transcript.regionType(), transcript.undisruptedCopyNumber(),
                                 breakend.copyNumber());
 
                         disruptionData.setReportable(true);
 
-                        if(var.type() == DEL
-                        && isPseudogeneDeletion(var, var.position(true), var.position(false), transcript.TransData))
-                        {
+                        if (var.type() == DEL
+                                && isPseudogeneDeletion(var, var.position(true), var.position(false),
+                                        transcript.TransData)) {
                             disruptionData.markPseudogeneDeletion();
                         }
 
                         mDisruptions.add(disruptionData);
 
-                        if(mVisSampleData != null)
-                        {
+                        if (mVisSampleData != null) {
                             mVisSampleData.addGeneExonData(
                                     var.getCluster().id(), gene.geneId(), gene.geneName(),
                                     "", 0, gene.chromosome(), DISRUPTION);
@@ -796,25 +769,24 @@ public class DisruptionFinder implements CohortFileInterface
             }
         }
 
-        if(mIsGermline)
+        if (mIsGermline)
             mGermlineDisruptions.findGeneDeletions(clusters);
     }
 
-    public void addReportableDisruptions(final List<DriverCatalog> driverCatalogs)
-    {
-        for(SvDisruptionData disruptionData : mDisruptions)
-        {
-            if(!disruptionData.reportable())
+    public void addReportableDisruptions(final List<DriverCatalog> driverCatalogs) {
+        for (SvDisruptionData disruptionData : mDisruptions) {
+            if (!disruptionData.reportable())
                 continue;
 
-            if(driverCatalogs.stream()
+            if (driverCatalogs.stream()
                     .filter(x -> x.gene().equals(disruptionData.Gene.GeneName))
-                    .anyMatch(x -> x.driver() == HOM_DUP_DISRUPTION || x.driver() == HOM_DEL_DISRUPTION || x.driver() == DriverType.DISRUPTION))
-            {
+                    .anyMatch(x -> x.driver() == HOM_DUP_DISRUPTION || x.driver() == HOM_DEL_DISRUPTION
+                            || x.driver() == DriverType.DISRUPTION)) {
                 continue;
             }
 
-            DriverGene driverGene = mDriverGenes.stream().filter(x -> x.gene().equals(disruptionData.Gene.GeneName)).findFirst().orElse(null);
+            DriverGene driverGene = mDriverGenes.stream().filter(x -> x.gene().equals(disruptionData.Gene.GeneName))
+                    .findFirst().orElse(null);
 
             DriverCatalog driverCatalog = ImmutableDriverCatalog.builder()
                     .driver(DriverType.DISRUPTION)
@@ -840,18 +812,15 @@ public class DisruptionFinder implements CohortFileInterface
         }
     }
 
-    public void writeGermlineDisruptions(final String sampleId, final String outputDir)
-    {
+    public void writeGermlineDisruptions(final String sampleId, final String outputDir) {
         mGermlineDisruptions.writeGermlineSVs(mDisruptions, sampleId, outputDir);
     }
 
-    public static double getUndisruptedCopyNumber(final SvBreakend breakend)
-    {
+    public static double getUndisruptedCopyNumber(final SvBreakend breakend) {
         double cnLowSide = breakend.copyNumberLowSide();
 
         final DbPair dbLink = breakend.getDBLink();
-        if(dbLink != null && dbLink.length() < 0)
-        {
+        if (dbLink != null && dbLink.length() < 0) {
             cnLowSide -= dbLink.getOtherBreakend(breakend).jcn();
         }
 
@@ -859,44 +828,43 @@ public class DisruptionFinder implements CohortFileInterface
     }
 
     // used by fusion logic only
-    public static boolean isDisruptiveInTranscript(final SvVarData var, final TranscriptData transcript)
-    {
+    public static boolean isDisruptiveInTranscript(final SvVarData var, final TranscriptData transcript) {
         // return false if both breakends are not disruptive in this transcript
-        if(var.isSglBreakend())
+        if (var.isSglBreakend())
             return true;
 
-        for(int se = SE_START; se <= SE_END; ++se)
-        {
+        for (int se = SE_START; se <= SE_END; ++se) {
             BreakendTransData matchingTrans = var.getGenesList(isStart(se)).stream()
                     .filter(x -> x.geneId().equals(transcript.GeneId))
-                    .map(x -> x.transcripts().stream().filter(y -> y.transId() == transcript.TransId).findFirst().orElse(null))
+                    .map(x -> x.transcripts().stream().filter(y -> y.transId() == transcript.TransId).findFirst()
+                            .orElse(null))
                     .filter(x -> x != null).findFirst().orElse(null);
 
-            if(matchingTrans != null && matchingTrans.isDisruptive())
+            if (matchingTrans != null && matchingTrans.isDisruptive())
                 return true;
         }
 
         return false;
     }
 
-    public boolean isNonDisruptiveChainedPair(final BreakendTransData upTrans, final List<BreakendGeneData> downGenesList)
-    {
-        if(upTrans.regionType() == EXONIC)
+    public boolean isNonDisruptiveChainedPair(final BreakendTransData upTrans,
+            final List<BreakendGeneData> downGenesList) {
+        if (upTrans.regionType() == EXONIC)
             return false;
 
-        // check whether these breakends may belong to the same non-disrupted segment in any upstream transcript
+        // check whether these breakends may belong to the same non-disrupted segment in
+        // any upstream transcript
         final BreakendGeneData downGene = downGenesList.stream()
                 .filter(x -> x.geneId().equals(upTrans.gene().geneId())).findFirst().orElse(null);
 
-        if(downGene == null)
+        if (downGene == null)
             return false;
 
-        for(BreakendTransData downTrans : downGene.transcripts())
-        {
-            if(downTrans.transId() != upTrans.transId())
+        for (BreakendTransData downTrans : downGene.transcripts()) {
+            if (downTrans.transId() != upTrans.transId())
                 continue;
 
-            if(downTrans.regionType() == upTrans.regionType() && downTrans.ExonUpstream == upTrans.ExonUpstream)
+            if (downTrans.regionType() == upTrans.regionType() && downTrans.ExonUpstream == upTrans.ExonUpstream)
                 return true;
         }
 
@@ -906,16 +874,16 @@ public class DisruptionFinder implements CohortFileInterface
     private static final String COHORT_WRITER_DISRUPTION = "Disruption";
 
     @Override
-    public String fileType() { return COHORT_WRITER_DISRUPTION; }
+    public String fileType() {
+        return COHORT_WRITER_DISRUPTION;
+    }
 
     @Override
-    public BufferedWriter createWriter(final String outputDir)
-    {
-        if(mIsGermline)
+    public BufferedWriter createWriter(final String outputDir) {
+        if (mIsGermline)
             return null;
 
-        try
-        {
+        try {
             String outputFilename = cohortDataFilename(outputDir, "DISRUPTIONS");
 
             BufferedWriter writer = createBufferedWriter(outputFilename, false);
@@ -927,44 +895,39 @@ public class DisruptionFinder implements CohortFileInterface
 
             writer.newLine();
             return writer;
-        }
-        catch (final IOException e)
-        {
+        } catch (final IOException e) {
             LNX_LOGGER.error("error writing disruptions: {}", e.toString());
             return null;
         }
     }
 
-    public void writeCohortData(final String sampleId, final List<SvVarData> svList)
-    {
-        if(mIsGermline)
+    public void writeCohortData(final String sampleId, final List<SvVarData> svList) {
+        if (mIsGermline)
             return;
 
         List<String> outputLines = Lists.newArrayList();
 
-        for(final SvDisruptionData disruptionData : mDisruptions)
-        {
+        for (final SvDisruptionData disruptionData : mDisruptions) {
             StringBuilder sb = new StringBuilder();
 
             sb.append(String.format("%s\t%s", sampleId, disruptionData.asCsv()));
 
-            sb.append(String.format("\t%.2f\t\t",disruptionData.UndisruptedCopyNumber));
+            sb.append(String.format("\t%.2f\t\t", disruptionData.UndisruptedCopyNumber));
 
             outputLines.add(sb.toString());
         }
 
-        for(Map.Entry<BreakendTransData, String> entry : mRemovedDisruptions.entrySet())
-        {
+        for (Map.Entry<BreakendTransData, String> entry : mRemovedDisruptions.entrySet()) {
             final String exclusionInfo = entry.getValue();
 
-            if(exclusionInfo.equals(NON_DISRUPT_REASON_SIMPLE_SV))
+            if (exclusionInfo.equals(NON_DISRUPT_REASON_SIMPLE_SV))
                 continue;
 
             final BreakendTransData transcript = entry.getKey();
             final BreakendGeneData gene = transcript.gene();
             final SvVarData var = svList.stream().filter(x -> x.id() == gene.id()).findFirst().orElse(null);
 
-            if(var == null)
+            if (var == null)
                 continue;
 
             final SvCluster cluster = var.getCluster();
@@ -980,15 +943,15 @@ public class DisruptionFinder implements CohortFileInterface
 
             String[] contextInfo = exclusionInfo.split(ITEM_DELIM);
 
-            if(contextInfo.length == 2)
-            {
+            if (contextInfo.length == 2) {
                 exclusionReason = contextInfo[0];
                 extraInfo = contextInfo[1];
             }
 
             sb.append(String.format("\t%s\t%s\t%d\t%s\t%d\t%d\t%s\t%s\t%d\t%s\t%d",
                     gene.geneId(), gene.geneName(), gene.strand(), transcript.transName(),
-                    transcript.ExonUpstream, transcript.ExonDownstream, transcript.codingType(), transcript.regionType(),
+                    transcript.ExonUpstream, transcript.ExonDownstream, transcript.codingType(),
+                    transcript.regionType(),
                     cluster.id(), cluster.getResolvedType(), cluster.getSvCount()));
 
             sb.append(String.format("\t%.2f\t%s\t%s", transcript.undisruptedCopyNumber(), exclusionReason, extraInfo));

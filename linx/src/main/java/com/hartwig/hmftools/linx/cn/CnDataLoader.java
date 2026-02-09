@@ -32,28 +32,26 @@ import com.hartwig.hmftools.common.purple.PurityContextFile;
 import com.hartwig.hmftools.common.purple.SegmentSupport;
 import com.hartwig.hmftools.common.sv.StructuralVariantData;
 
-public class CnDataLoader
-{
+public class CnDataLoader {
     private final String mPurpleDataPath;
 
     private int mRecordId;
 
     private final List<StructuralVariantData> mSvDataList;
     private final List<PurpleCopyNumber> mCnRecords;
-    private final Map<String,List<SvCNData>> mChrCnDataMap; // map of chromosome to CN data items
-    private final Map<Integer,SvCNData[]> mSvIdCnDataMap; // map of SV Ids to corresponding CN data pair
+    private final Map<String, List<SvCNData>> mChrCnDataMap; // map of chromosome to CN data items
+    private final Map<Integer, SvCNData[]> mSvIdCnDataMap; // map of SV Ids to corresponding CN data pair
     private PurityContext mPurityContext;
 
     private final List<LohEvent> mLohEventData;
     private final List<HomLossEvent> mHomLossData;
-    private final Map<String,TelomereCentromereCnData> mChrEndsCNMap; // telomere and centromere CN values
+    private final Map<String, TelomereCentromereCnData> mChrEndsCNMap; // telomere and centromere CN values
     private final CnJcnCalcs mCnJcnCalcs;
 
     public static final double MIN_LOH_CN = 0.5;
     public static final double TOTAL_CN_LOSS = 0.5;
 
-    public CnDataLoader(final String purpleDataPath)
-    {
+    public CnDataLoader(final String purpleDataPath) {
         mPurpleDataPath = !purpleDataPath.isEmpty() ? checkAddDirSeparator(purpleDataPath) : "";
 
         mChrCnDataMap = Maps.newHashMap();
@@ -70,17 +68,39 @@ public class CnDataLoader
         mCnJcnCalcs.establishReadCountCache();
     }
 
-    public final Map<Integer, JcnCalcData> getSvJcnCalcMap() { return mCnJcnCalcs.getSvJcnCalcMap(); }
-    public final List<LohEvent> getLohData() { return mLohEventData; }
-    public final List<HomLossEvent> getHomLossData() { return mHomLossData; }
-    public final Map<String,TelomereCentromereCnData> getChrTeleCentroData() { return mChrEndsCNMap; }
-    public final Map<String,List<SvCNData>> getChrCnDataMap() { return mChrCnDataMap; }
-    public final Map<Integer,SvCNData[]> getSvIdCnDataMap() { return mSvIdCnDataMap; }
-    public final PurityContext getPurityContext() { return mPurityContext; }
-    public final void setPurityContext(final PurityContext context) { mPurityContext = context; }
+    public final Map<Integer, JcnCalcData> getSvJcnCalcMap() {
+        return mCnJcnCalcs.getSvJcnCalcMap();
+    }
 
-    public void loadSampleData(final String sampleId, List<StructuralVariantData> svRecords)
-    {
+    public final List<LohEvent> getLohData() {
+        return mLohEventData;
+    }
+
+    public final List<HomLossEvent> getHomLossData() {
+        return mHomLossData;
+    }
+
+    public final Map<String, TelomereCentromereCnData> getChrTeleCentroData() {
+        return mChrEndsCNMap;
+    }
+
+    public final Map<String, List<SvCNData>> getChrCnDataMap() {
+        return mChrCnDataMap;
+    }
+
+    public final Map<Integer, SvCNData[]> getSvIdCnDataMap() {
+        return mSvIdCnDataMap;
+    }
+
+    public final PurityContext getPurityContext() {
+        return mPurityContext;
+    }
+
+    public final void setPurityContext(final PurityContext context) {
+        mPurityContext = context;
+    }
+
+    public void loadSampleData(final String sampleId, List<StructuralVariantData> svRecords) {
         mSvDataList.clear();
         mSvDataList.addAll(svRecords);
 
@@ -91,13 +111,11 @@ public class CnDataLoader
         processSampleData(sampleId);
     }
 
-    public void calculateAdjustedJcn(final String sampleId)
-    {
+    public void calculateAdjustedJcn(final String sampleId) {
         mCnJcnCalcs.calculateAdjustedJcn(sampleId);
     }
 
-    private void processSampleData(final String sampleId)
-    {
+    private void processSampleData(final String sampleId) {
         linkCopyNumberAndSvData(sampleId);
 
         findLohEvents(sampleId);
@@ -105,21 +123,18 @@ public class CnDataLoader
         mCnJcnCalcs.calculateAdjustedJcn(sampleId);
     }
 
-    private void loadCopyNumberData(final String sampleId)
-    {
+    private void loadCopyNumberData(final String sampleId) {
         mChrCnDataMap.clear();
         mCnRecords.clear();
 
-        if(!mPurpleDataPath.isEmpty())
-        {
-            try
-            {
-                String samplePurpleDir = mPurpleDataPath.contains("*") ? mPurpleDataPath.replaceAll("\\*", sampleId) : mPurpleDataPath;
-                mCnRecords.addAll(PurpleCopyNumberFile.read(PurpleCopyNumberFile.generateFilenameForReading(samplePurpleDir, sampleId)));
+        if (!mPurpleDataPath.isEmpty()) {
+            try {
+                String samplePurpleDir = mPurpleDataPath.contains("*") ? mPurpleDataPath.replaceAll("\\*", sampleId)
+                        : mPurpleDataPath;
+                mCnRecords.addAll(PurpleCopyNumberFile
+                        .read(PurpleCopyNumberFile.generateFilenameForReading(samplePurpleDir, sampleId)));
                 mPurityContext = PurityContextFile.read(samplePurpleDir, sampleId);
-            }
-            catch(IOException e)
-            {
+            } catch (IOException e) {
                 LNX_LOGGER.error("failed to load purity context: {}", e.toString());
                 return;
             }
@@ -127,12 +142,10 @@ public class CnDataLoader
 
         String currentChromosome = "";
         List<SvCNData> cnDataList = null;
-        for(final PurpleCopyNumber cnRecord : mCnRecords)
-        {
+        for (final PurpleCopyNumber cnRecord : mCnRecords) {
             SvCNData cnData = new SvCNData(cnRecord, ++mRecordId);
 
-            if(!currentChromosome.equals(cnData.Chromosome))
-            {
+            if (!currentChromosome.equals(cnData.Chromosome)) {
                 currentChromosome = cnData.Chromosome;
                 cnDataList = Lists.newArrayList();
                 mChrCnDataMap.put(cnData.Chromosome, cnDataList);
@@ -143,19 +156,16 @@ public class CnDataLoader
         }
     }
 
-    private void linkCopyNumberAndSvData(final String sampleId)
-    {
+    private void linkCopyNumberAndSvData(final String sampleId) {
         mSvIdCnDataMap.clear();
 
         int unmatchedSVs = 0;
 
-        for(final StructuralVariantData svData : mSvDataList)
-        {
-            if(svData.filter().equals(PON_FILTER_PON))
+        for (final StructuralVariantData svData : mSvDataList) {
+            if (svData.filter().equals(PON_FILTER_PON))
                 continue;
 
-            for(int be = SE_START; be <= SE_END; ++be)
-            {
+            for (int be = SE_START; be <= SE_END; ++be) {
                 boolean isStart = isStart(be);
 
                 final String svChromosome = isStart ? svData.startChromosome() : svData.endChromosome();
@@ -164,30 +174,42 @@ public class CnDataLoader
 
                 final List<SvCNData> cnDataList = mChrCnDataMap.get(svChromosome);
 
-                if(cnDataList == null || cnDataList.isEmpty())
+                if (cnDataList == null || cnDataList.isEmpty())
                     continue;
 
                 boolean cnDataFound = false;
 
-                for(SvCNData cnData : cnDataList)
-                {
-                    // ignore orientation during matching since CN change is not a reliable determinant of SV orientation
+                for (SvCNData cnData : cnDataList) {
+                    // ignore orientation during matching since CN change is not a reliable
+                    // determinant of SV orientation
                     int cnPosition = cnData.StartPos;
 
-                    if(svOrientation == 1)
+                    if (svOrientation == 1)
                         --cnPosition;
-
-                    if(svPosition != cnPosition)
+                    if (cnPosition - 2 == svPosition) {
+                        LNX_LOGGER.trace("CN OFF BY -2: SV({} chr={} pos={} type={}) matches {} CN segment: id({})",
+                                svData.id(), svChromosome, svPosition, svData.type(), cnData.SegStart, cnData.id());
+                    }
+                    if (cnPosition - 1 == svPosition) {
+                        LNX_LOGGER.trace("CN OFF BY -1: SV({} chr={} pos={} type={}) matches {} CN segment: id({})",
+                                svData.id(), svChromosome, svPosition, svData.type(), cnData.SegStart, cnData.id());
+                    }
+                    if (cnPosition + 1 == svPosition) {
+                        LNX_LOGGER.trace("CN OFF BY +1: SV({} chr={} pos={} type={}) matches {} CN segment: id({})",
+                                svData.id(), svChromosome, svPosition, svData.type(), cnData.SegStart, cnData.id());
+                    }
+                    if (cnPosition + 2 == svPosition) {
+                        LNX_LOGGER.trace("CN OFF BY +2: SV({} chr={} pos={} type={}) matches {} CN segment: id({})",
+                                svData.id(), svChromosome, svPosition, svData.type(), cnData.SegStart, cnData.id());
+                    }
+                    if (svPosition != cnPosition)
                         continue;
 
-                    if(!svData.type().toString().equals(cnData.SegStart))
-                    {
-                        if((svData.type() == SGL || svData.type() == INF) && svData.filter().equals(NONE_SEGMENT_INFERRED) && cnData.matchesSegment(NONE, true))
-                        {
+                    if (!svData.type().toString().equals(cnData.SegStart)) {
+                        if ((svData.type() == SGL || svData.type() == INF)
+                                && svData.filter().equals(NONE_SEGMENT_INFERRED) && cnData.matchesSegment(NONE, true)) {
                             // SGL inferred == NONE in CN table
-                        }
-                        else
-                        {
+                        } else {
                             // allow matches if the position if correct
                             LNX_LOGGER.trace("SV({} chr={} pos={} type={}) matches {} CN segment: id({})",
                                     svData.id(), svChromosome, svPosition, svData.type(), cnData.SegStart, cnData.id());
@@ -196,25 +218,24 @@ public class CnDataLoader
 
                     // a match has been found
 
-                    if(cnData.getStructuralVariantData() == null)
-                    {
+                    if (cnData.getStructuralVariantData() == null) {
                         cnData.setStructuralVariantData(svData, isStart);
                     }
 
                     SvCNData[] cnDataItems = mSvIdCnDataMap.get(svData.id());
 
-                    if(cnDataItems == null)
-                    {
-                        cnDataItems = new SvCNData[SE_END +1];
+                    if (cnDataItems == null) {
+                        cnDataItems = new SvCNData[SE_END + 1];
                         mSvIdCnDataMap.put(svData.id(), cnDataItems);
                     }
 
                     cnDataItems[be] = cnData;
                     cnDataFound = true;
+                    LNX_LOGGER.trace("SV({} chr={} pos={} type={}) matches {} CN segment: id({})",
+                            svData.id(), svChromosome, svPosition, svData.type(), cnData.SegStart, cnData.id());
                 }
 
-                if(!cnDataFound && svData.type() != INS)
-                {
+                if (!cnDataFound && svData.type() != INS) {
                     LNX_LOGGER.debug("SV({} chr={} pos={} type={}) {} unmatched)",
                             svData.id(), svChromosome, svPosition, svData.type(), isStart ? "start" : "end");
 
@@ -223,17 +244,15 @@ public class CnDataLoader
             }
         }
 
-        if(unmatchedSVs > 0)
-        {
+        if (unmatchedSVs > 0) {
             LNX_LOGGER.warn("sample({}) has {} unmatched CN-SV segments", sampleId, unmatchedSVs);
         }
     }
 
-    private boolean isSingleVariant(final SvCNData cnData)
-    {
+    private boolean isSingleVariant(final SvCNData cnData) {
         final StructuralVariantData svData = cnData.getStructuralVariantData();
 
-        if(svData == null)
+        if (svData == null)
             return false;
 
         int svPosStart = svData.startOrientation() == -1 ? cnData.StartPos : cnData.StartPos - 1;
@@ -242,29 +261,26 @@ public class CnDataLoader
         return (svData.startPosition() == svPosStart && svData.endPosition() == svPosEnd);
     }
 
-    public static boolean isMaleSample(final PurityContext purityContext)
-    {
+    public static boolean isMaleSample(final PurityContext purityContext) {
         return purityContext != null && purityContext.gender().toString().startsWith("MALE");
     }
 
-    private boolean expectSingleChromosome(final String chromosome)
-    {
+    private boolean expectSingleChromosome(final String chromosome) {
         return expectSingleChromosome(isMaleSample(mPurityContext), chromosome);
     }
 
-    public static boolean expectSingleChromosome(boolean isMale, final String chromosome)
-    {
+    public static boolean expectSingleChromosome(boolean isMale, final String chromosome) {
         return isMale && (chromosome.equals("X") || chromosome.equals("Y"));
     }
 
     private static final int REMOTE_SV_DISTANCE = 1000000;
 
-    private void findLohEvents(final String sampleId)
-    {
+    private void findLohEvents(final String sampleId) {
         mLohEventData.clear();
         mHomLossData.clear();
 
-        // walk through the CN records looking for any loss of hetrozygosity, defined as minor allele ploidy < 0.5
+        // walk through the CN records looking for any loss of hetrozygosity, defined as
+        // minor allele ploidy < 0.5
         // and when CN rises back above this level, consider the LOH section ended
         boolean isLohSection = false;
         double lohMinCN = 0;
@@ -278,14 +294,12 @@ public class CnDataLoader
         boolean totalLoss = false;
         final List<HomLossEvent> lohHomLossEvents = Lists.newArrayList();
 
-        for(Map.Entry<String,List<SvCNData>> entry : mChrCnDataMap.entrySet())
-        {
+        for (Map.Entry<String, List<SvCNData>> entry : mChrCnDataMap.entrySet()) {
             final String chromosome = entry.getKey();
 
             final List<SvCNData> cnDataList = entry.getValue();
 
-            for(int index = 0; index < cnDataList.size(); ++index)
-            {
+            for (int index = 0; index < cnDataList.size(); ++index) {
                 final SvCNData cnData = cnDataList.get(index);
 
                 double minCN = cnData.minorAlleleJcn();
@@ -293,13 +307,12 @@ public class CnDataLoader
                 boolean newChromosome = (index == 0);
                 boolean reset = newChromosome;
 
-                if(cnData.CopyNumber < TOTAL_CN_LOSS)
-                {
+                if (cnData.CopyNumber < TOTAL_CN_LOSS) {
                     // record homozygous loss
                     final SvCNData nextCnData = index < cnDataList.size() - 1 ? cnDataList.get(index + 1) : null;
 
-                    StructuralVariantData svData = findSvData (cnData, 1);
-                    StructuralVariantData nextSvData = nextCnData != null ? findSvData (nextCnData, -1) : null;
+                    StructuralVariantData svData = findSvData(cnData, 1);
+                    StructuralVariantData nextSvData = nextCnData != null ? findSvData(nextCnData, -1) : null;
 
                     HomLossEvent homLoss = new HomLossEvent(chromosome, cnData.StartPos, cnData.EndPos,
                             cnData.SegStart, cnData.SegEnd,
@@ -311,49 +324,43 @@ public class CnDataLoader
 
                     mHomLossData.add(homLoss);
 
-                    if(isLohSection || lohOnStartTelomere)
+                    if (isLohSection || lohOnStartTelomere)
                         lohHomLossEvents.add(homLoss);
                 }
 
-                if(isLohSection || lohOnStartTelomere)
-                {
+                if (isLohSection || lohOnStartTelomere) {
                     boolean lohRegained = (minCN >= MIN_LOH_CN);
 
                     // check that an SV with correct orientation exists here
-                    if(lohRegained && cnData.matchesSV(true) && findSvData(cnData, -1) == null)
-                    {
+                    if (lohRegained && cnData.matchesSV(true) && findSvData(cnData, -1) == null) {
                         lohRegained = false;
 
                         LNX_LOGGER.debug("skipping LOH end segment({}) with no SV match", cnData);
                     }
 
-                    if(lohRegained || reset)
-                    {
+                    if (lohRegained || reset) {
                         // check for a short isolated TI and if found continue with the LOH
-                        if(lohRegained && cnData.EndPos - cnData.StartPos <= SHORT_TI_LENGTH && index < cnDataList.size() - 1)
-                        {
+                        if (lohRegained && cnData.EndPos - cnData.StartPos <= SHORT_TI_LENGTH
+                                && index < cnDataList.size() - 1) {
                             final SvCNData nextData = cnDataList.get(index + 1);
                             double nextMinCN = nextData.minorAlleleJcn();
 
-                            if(nextData.EndPos - cnData.StartPos > REMOTE_SV_DISTANCE && nextMinCN < MIN_LOH_CN
-                            && lohStartCnData != null && cnData.StartPos - lohStartCnData.StartPos > REMOTE_SV_DISTANCE)
-                            {
+                            if (nextData.EndPos - cnData.StartPos > REMOTE_SV_DISTANCE && nextMinCN < MIN_LOH_CN
+                                    && lohStartCnData != null
+                                    && cnData.StartPos - lohStartCnData.StartPos > REMOTE_SV_DISTANCE) {
                                 LNX_LOGGER.trace("chr({}) skipping short isolated TI seg({}) length({})",
                                         chromosome, cnData, cnData.EndPos - cnData.StartPos);
                                 continue;
                             }
                         }
 
-                        if(lohOnStartTelomere || totalLoss)
-                        {
+                        if (lohOnStartTelomere || totalLoss) {
                             // LOH section invalidated
                             processLOHData(chromosome, lohStartCnData, cnData, lohSegments, false, lohHomLossEvents);
 
                             lohOnStartTelomere = false;
                             totalLoss = false;
-                        }
-                        else
-                        {
+                        } else {
                             // log all relevant data for this completed section
                             lohSVsMatchedCount += processLOHData(
                                     chromosome, lohStartCnData, cnData, lohSegments, false, lohHomLossEvents);
@@ -361,46 +368,37 @@ public class CnDataLoader
                         }
 
                         reset = true;
-                    }
-                    else if(cnData.matchesSegment(TELOMERE, false))
-                    {
-                        // rest of arm was lost so no linking SV for LOH section - but still record the event
+                    } else if (cnData.matchesSegment(TELOMERE, false)) {
+                        // rest of arm was lost so no linking SV for LOH section - but still record the
+                        // event
                         processLOHData(chromosome, lohStartCnData, cnData, lohSegments, true, lohHomLossEvents);
                         reset = true;
-                    }
-                    else if(cnData.CopyNumber < TOTAL_CN_LOSS)
-                    {
-                        // other chromatid loss has occurred - this will cancel a valid LOH due to uncertainty unless due to a simple SV
-                        if(cnData.matchesSegment(SegmentSupport.DEL, true) && cnData.matchesSegment(SegmentSupport.DEL, false)
-                                && isSingleVariant(cnData))
-                        {
-                            LNX_LOGGER.trace("total CN loss matches single SV({} : {} -> {})", chromosome, cnData.StartPos, cnData.EndPos);
-                        }
-                        else
-                        {
+                    } else if (cnData.CopyNumber < TOTAL_CN_LOSS) {
+                        // other chromatid loss has occurred - this will cancel a valid LOH due to
+                        // uncertainty unless due to a simple SV
+                        if (cnData.matchesSegment(SegmentSupport.DEL, true)
+                                && cnData.matchesSegment(SegmentSupport.DEL, false)
+                                && isSingleVariant(cnData)) {
+                            LNX_LOGGER.trace("total CN loss matches single SV({} : {} -> {})", chromosome,
+                                    cnData.StartPos, cnData.EndPos);
+                        } else {
                             totalLoss = true;
                         }
-                    }
-                    else
-                    {
+                    } else {
                         ++lohSegments;
                         lohMinCN = min(lohMinCN, minCN);
                     }
-                }
-                else if(!reset)
-                {
+                } else if (!reset) {
                     boolean lohLost = minCN < MIN_LOH_CN;
 
                     // check that an SV with correct orientation exists here
                     StructuralVariantData svData = findSvData(cnData, 1);
 
-                    if(lohLost && cnData.matchesSV(true) && svData == null)
-                    {
+                    if (lohLost && cnData.matchesSV(true) && svData == null) {
                         lohLost = false;
                     }
 
-                    if(lohLost)
-                    {
+                    if (lohLost) {
                         // new LOH section identified
                         isLohSection = true;
                         lohSegments = 1;
@@ -408,18 +406,16 @@ public class CnDataLoader
                         lohMinCN = minCN;
                         priorCN = lastMinCN;
 
-                        if(lohOnStartTelomere)
-                        {
+                        if (lohOnStartTelomere) {
                             LNX_LOGGER.trace("chr({}) LOH at telomere", chromosome);
-                        }
-                        else
-                        {
-                            LNX_LOGGER.trace(String.format("chr(%s) starting LOH at pos(%d) minCN(%.3f cn=%.3f baf=%.3f) priorCN(%.3f)",
-                                    chromosome, cnData.StartPos, cnData.CopyNumber, cnData.ActualBaf, lohMinCN, priorCN));
+                        } else {
+                            LNX_LOGGER.trace(String.format(
+                                    "chr(%s) starting LOH at pos(%d) minCN(%.3f cn=%.3f baf=%.3f) priorCN(%.3f)",
+                                    chromosome, cnData.StartPos, cnData.CopyNumber, cnData.ActualBaf, lohMinCN,
+                                    priorCN));
 
                             // check for segments ending on telomere
-                            if(cnData.matchesSegment(TELOMERE, false))
-                            {
+                            if (cnData.matchesSegment(TELOMERE, false)) {
                                 processLOHData(chromosome, lohStartCnData, lohStartCnData, lohSegments, true, null);
                                 reset = true;
                             }
@@ -427,8 +423,7 @@ public class CnDataLoader
                     }
                 }
 
-                if(reset)
-                {
+                if (reset) {
                     isLohSection = false;
                     lohOnStartTelomere = false;
                     lohSegments = 0;
@@ -436,8 +431,7 @@ public class CnDataLoader
                     totalLoss = false;
                     lohHomLossEvents.clear();
 
-                    if(newChromosome && (minCN < MIN_LOH_CN))
-                    {
+                    if (newChromosome && (minCN < MIN_LOH_CN)) {
                         lohOnStartTelomere = true;
                         lohStartCnData = cnData;
                     }
@@ -451,12 +445,10 @@ public class CnDataLoader
                 sampleId, lohSectionCount, lohSVsMatchedCount);
     }
 
-    private StructuralVariantData findSvData(final SvCNData cnData, int requiredOrient)
-    {
-        if(cnData.matchesSegment(UNKNOWN, true)
-        || cnData.matchesSegment(TELOMERE, true)
-        || cnData.matchesSegment(CENTROMERE, true))
-        {
+    private StructuralVariantData findSvData(final SvCNData cnData, int requiredOrient) {
+        if (cnData.matchesSegment(UNKNOWN, true)
+                || cnData.matchesSegment(TELOMERE, true)
+                || cnData.matchesSegment(CENTROMERE, true)) {
             return null;
         }
 
@@ -464,67 +456,61 @@ public class CnDataLoader
 
         final StructuralVariantData svData = cnData.getStructuralVariantData();
 
-        if(svData == null)
+        if (svData == null)
             return null;
 
-        if(cnData.svLinkOnStart() && svData.startOrientation() == requiredOrient && svData.startPosition() == svPosition)
+        if (cnData.svLinkOnStart() && svData.startOrientation() == requiredOrient
+                && svData.startPosition() == svPosition)
             return svData;
-        else if(!cnData.svLinkOnStart() && svData.endOrientation() == requiredOrient && svData.endPosition() == svPosition)
+        else if (!cnData.svLinkOnStart() && svData.endOrientation() == requiredOrient
+                && svData.endPosition() == svPosition)
             return svData;
         else
             return null;
     }
 
     private int processLOHData(final String chromosome, SvCNData startData, SvCNData endData,
-            int segCount, boolean incomplete, final List<HomLossEvent> lohHomLossEvents)
-    {
-        if(expectSingleChromosome(chromosome))
+            int segCount, boolean incomplete, final List<HomLossEvent> lohHomLossEvents) {
+        if (expectSingleChromosome(chromosome))
             return 0;
 
         StructuralVariantData startSvData = findSvData(startData, 1);
 
         StructuralVariantData endSvData = null;
 
-        if(incomplete)
-        {
+        if (incomplete) {
             // ended at the telomere
             endSvData = null;
-        }
-        else if(!startData.matchesSegment(TELOMERE, false))
-        {
+        } else if (!startData.matchesSegment(TELOMERE, false)) {
             endSvData = findSvData(endData, -1);
-        }
-        else
-        {
+        } else {
             // segment has either started and/or finished on the telomere segment
             endData = startData;
         }
 
-        // exclude an LOH if one boundary is a simple non-overlapping SV and the other is another variant
-        if(startData != null && endData != null && startSvData != null && endSvData != null && startSvData.id() != endSvData.id())
-        {
-            if(startData.matchesSegment(SegmentSupport.DEL, true) || startData.matchesSegment(SegmentSupport.DUP, true))
-            {
+        // exclude an LOH if one boundary is a simple non-overlapping SV and the other
+        // is another variant
+        if (startData != null && endData != null && startSvData != null && endSvData != null
+                && startSvData.id() != endSvData.id()) {
+            if (startData.matchesSegment(SegmentSupport.DEL, true)
+                    || startData.matchesSegment(SegmentSupport.DUP, true)) {
                 // check if the other segment is neighbouring to this one
                 SvCNData[] cnDataItems = mSvIdCnDataMap.get(startSvData.id());
 
-                if(cnDataItems != null && cnDataItems[SE_START] != null && cnDataItems[SE_END] != null
-                && cnDataItems[SE_START].getIndex() == cnDataItems[SE_END].getIndex() - 1)
-                {
+                if (cnDataItems != null && cnDataItems[SE_START] != null && cnDataItems[SE_END] != null
+                        && cnDataItems[SE_START].getIndex() == cnDataItems[SE_END].getIndex() - 1) {
                     LNX_LOGGER.debug("segs start({}) and end({}) skipped since bounded by simpleSV({})",
                             startData, endData, startSvData.id());
                     return 1;
                 }
             }
 
-            if(endData.matchesSegment(SegmentSupport.DEL, true) || endData.matchesSegment(SegmentSupport.DUP, true))
-            {
+            if (endData.matchesSegment(SegmentSupport.DEL, true) || endData.matchesSegment(SegmentSupport.DUP, true)) {
                 // check if the other segment is neighbouring to this one
                 SvCNData[] cnDataItems = mSvIdCnDataMap.get(endSvData.id());
 
-                if(cnDataItems != null && cnDataItems[SE_START] != null && cnDataItems[SE_END] != null
-                && cnDataItems[SE_START].getIndex() == cnDataItems[SE_END].getIndex() - 1)
-                {
+                if (cnDataItems != null && cnDataItems[SE_START] != null && cnDataItems[SE_END] != null
+                        && cnDataItems[SE_START].getIndex() == cnDataItems[SE_END].getIndex() - 1) {
                     LNX_LOGGER.debug("segs start({}) and end({}) skipped since bounded by simpleSV({})",
                             startData, endData, endSvData.id());
                     return 1;
@@ -532,33 +518,26 @@ public class CnDataLoader
             }
         }
 
-        if(LNX_LOGGER.isDebugEnabled())
-        {
-            if(startSvData != null && endSvData != null)
-            {
-                if(startSvData.id() == endSvData.id())
-                {
+        if (LNX_LOGGER.isDebugEnabled()) {
+            if (startSvData != null && endSvData != null) {
+                if (startSvData.id() == endSvData.id()) {
                     LNX_LOGGER.trace("segs start({}) and end({}) matches singleSV({} - {})",
                             startData, endData, startSvData.id(), startSvData.type());
-                }
-                else
-                {
+                } else {
                     LNX_LOGGER.trace("segs start({}) and end({}) matches pairSV({} -> {})",
                             startData, endData, startSvData.id(), endSvData.id());
                 }
-            }
-            else
-            {
-                if(startSvData == null && startData.matchesSV(true))
-                {
+            } else {
+                if (startSvData == null && startData.matchesSV(true)) {
                     boolean incorrectOrientation = (startData.getStructuralVariantData() != null);
-                    LNX_LOGGER.debug("LOH start seg({}) no SV match: orient({})", startData, incorrectOrientation ? "wrong" : "ok");
+                    LNX_LOGGER.debug("LOH start seg({}) no SV match: orient({})", startData,
+                            incorrectOrientation ? "wrong" : "ok");
                 }
 
-                if(endSvData == null && endData.matchesSV(false))
-                {
+                if (endSvData == null && endData.matchesSV(false)) {
                     boolean incorrectOrientation = (endData.getStructuralVariantData() != null);
-                    LNX_LOGGER.debug("LOH end segment({}) no SV match: orient({})", endData, incorrectOrientation ? "wrong" : "ok");
+                    LNX_LOGGER.debug("LOH end segment({}) no SV match: orient({})", endData,
+                            incorrectOrientation ? "wrong" : "ok");
                 }
             }
         }
@@ -567,7 +546,8 @@ public class CnDataLoader
                 chromosome,
                 startData.StartPos, incomplete ? endData.EndPos : endData.StartPos,
                 startData.SegStart, incomplete ? endData.SegEnd : endData.SegStart, segCount,
-                startSvData != null ? startSvData.id() : CN_DATA_NO_SV, endSvData != null ? endSvData.id() : CN_DATA_NO_SV);
+                startSvData != null ? startSvData.id() : CN_DATA_NO_SV,
+                endSvData != null ? endSvData.id() : CN_DATA_NO_SV);
 
         lohData.addHomLossEvents(lohHomLossEvents);
 
@@ -577,42 +557,35 @@ public class CnDataLoader
         return (startSvData != null && endSvData != null) ? 1 : 0;
     }
 
-    public void createChrCopyNumberMap()
-    {
+    public void createChrCopyNumberMap() {
         mChrEndsCNMap.clear();
 
-        for(Map.Entry<String,List<SvCNData>> entry : mChrCnDataMap.entrySet())
-        {
+        for (Map.Entry<String, List<SvCNData>> entry : mChrCnDataMap.entrySet()) {
             double telomerePArm = 0;
             double telomereQArm = 0;
             double centromerePArm = 0;
             double centromereQArm = 0;
 
-            for(final SvCNData cnData : entry.getValue())
-            {
-                if(cnData.SegStart.equals(TELOMERE.toString()))
-                {
+            for (final SvCNData cnData : entry.getValue()) {
+                if (cnData.SegStart.equals(TELOMERE.toString())) {
                     telomerePArm = cnData.CopyNumber;
                 }
 
-                if(cnData.SegEnd.equals(CENTROMERE.toString()))
-                {
+                if (cnData.SegEnd.equals(CENTROMERE.toString())) {
                     centromerePArm = cnData.CopyNumber;
                 }
 
-                if(cnData.SegStart.equals(CENTROMERE.toString()))
-                {
+                if (cnData.SegStart.equals(CENTROMERE.toString())) {
                     centromereQArm = cnData.CopyNumber;
                 }
 
-                if(cnData.SegEnd.equals(TELOMERE.toString()))
-                {
+                if (cnData.SegEnd.equals(TELOMERE.toString())) {
                     telomereQArm = cnData.CopyNumber;
                 }
             }
 
-            mChrEndsCNMap.put(entry.getKey(), new TelomereCentromereCnData(telomerePArm, telomereQArm, centromerePArm, centromereQArm));
+            mChrEndsCNMap.put(entry.getKey(),
+                    new TelomereCentromereCnData(telomerePArm, telomereQArm, centromerePArm, centromereQArm));
         }
     }
 }
-
